@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Doctors</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="navbar">Doctors</div>
+<div class="nav-links">
+    <a href="index.html">Dashboard</a>
+</div>
+
+<div class="container">
+    <h2>Add Doctor</h2>
+
+    <div class="input-group">
+        <input id="full_name" placeholder="Full Name">
+    </div>
+    <div class="input-group">
+        <input id="speciality" placeholder="Speciality">
+    </div>
+    <div class="input-group">
+        <input id="phone" placeholder="Phone Number" 
+       maxlength="10"
+       pattern="[0-9]{10}"
+       oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+    </div>
+
+    <button onclick="addDoctor()">Add Doctor</button>
+
+    <h2>All Doctors</h2>
+    <table id="doctorsTable">
+        <thead>
+            <tr><th>ID</th><th>Name</th><th>Speciality</th><th>Phone</th><th>Actions</th></tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</div>
+
+
+<script>
+const API = "http://127.0.0.1:8000";
+
+async function loadDoctors() {
+    const res = await fetch(`${API}/doctors/`);
+    const data = await res.json();
+
+    const tbody = document.querySelector("#doctorsTable tbody");
+    tbody.innerHTML = "";
+
+    data.forEach(d => {
+        tbody.innerHTML += `
+            <tr>
+                <td>${d.id}</td>
+                <td>${d.full_name}</td>
+                <td>${d.speciality || ""}</td>
+                <td>${d.phone || ""}</td>
+                <td><button onclick="deleteDoctor(${d.id})">Delete</button></td>
+            </tr>
+        `;
+    });
+}
+
+async function addDoctor() {
+    const phone = document.getElementById("phone").value;
+
+    if (!/^[0-9]{10}$/.test(phone)) {
+        alert("Phone number must be 10 digits only.");
+        return;
+    }
+
+    const payload = {
+        full_name: document.getElementById("full_name").value,
+        speciality: document.getElementById("speciality").value,
+        phone: document.getElementById("phone").value
+    };
+
+    await fetch(`${API}/doctors/`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload)
+    });
+
+    loadDoctors();
+}
+
+async function deleteDoctor(id) {
+    await fetch(`${API}/doctors/${id}`, { method: "DELETE" });
+    loadDoctors();
+}
+
+loadDoctors();
+</script>
+
+</body>
+</html>

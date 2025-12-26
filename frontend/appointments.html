@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Appointments</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="navbar">Appointments</div>
+<div class="nav-links">
+    <a href="index.html">Dashboard</a>
+</div>
+
+<div class="container">
+    <h2>Create Appointment</h2>
+
+    <div class="input-group">
+        <input id="patient_id" placeholder="Patient ID">
+    </div>
+    <div class="input-group">
+        <input id="doctor_id" placeholder="Doctor ID">
+    </div>
+    <div class="input-group">
+        <input id="scheduled_at" type="datetime-local">
+    </div>
+    <div class="input-group">
+        <input id="reason" placeholder="Reason">
+    </div>
+
+    <button onclick="addAppointment()">Create Appointment</button>
+
+    <h2>All Appointments</h2>
+
+    <table id="appointmentTable">
+        <thead>
+            <tr><th>ID</th><th>Patient</th><th>Doctor</th><th>Date</th><th>Status</th><th>Actions</th></tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</div>
+
+
+<script>
+const API = "http://127.0.0.1:8000";
+
+async function loadAppointments() {
+    const res = await fetch(`${API}/appointments/`);
+    const data = await res.json();
+
+    const tbody = document.querySelector("#appointmentTable tbody");
+    tbody.innerHTML = "";
+
+    data.forEach(a => {
+        tbody.innerHTML += `
+            <tr>
+                <td>${a.id}</td>
+                <td>${a.patient_id}</td>
+                <td>${a.doctor_id}</td>
+                <td>${a.scheduled_at.replace("T", " ")}</td>
+                <td>${a.status}</td>
+                <td><button onclick="deleteAppointment(${a.id})">Delete</button></td>
+            </tr>
+        `;
+    });
+}
+
+async function addAppointment() {
+    const payload = {
+        patient_id: Number(document.getElementById("patient_id").value),
+        doctor_id: Number(document.getElementById("doctor_id").value),
+        scheduled_at: document.getElementById("scheduled_at").value,
+        reason: document.getElementById("reason").value
+    };
+
+    await fetch(`${API}/appointments/`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload)
+    });
+
+    loadAppointments();
+}
+
+async function deleteAppointment(id) {
+    await fetch(`${API}/appointments/${id}`, { method: "DELETE" });
+    loadAppointments();
+}
+
+loadAppointments();
+</script>
+
+</body>
+</html>

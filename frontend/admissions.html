@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admissions</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="navbar">Admissions</div>
+<div class="nav-links">
+    <a href="index.html">Dashboard</a>
+</div>
+
+<div class="container">
+    <h2>Admit Patient</h2>
+
+    <div class="input-group">
+        <input id="patient_id" placeholder="Patient ID">
+    </div>
+    <div class="input-group">
+        <input id="doctor_id" placeholder="Doctor ID">
+    </div>
+    <div class="input-group">
+        <input id="admitted_at" type="datetime-local">
+    </div>
+    <div class="input-group">
+        <input id="reason" placeholder="Reason for Admission">
+    </div>
+
+    <button onclick="addAdmission()">Admit Patient</button>
+
+    <h2>All Admissions</h2>
+
+    <table id="admissionTable">
+        <thead>
+            <tr><th>ID</th><th>Patient</th><th>Doctor</th><th>Admitted At</th><th>Status</th><th>Actions</th></tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</div>
+
+<script>
+const API = "http://127.0.0.1:8000";
+
+async function loadAdmissions() {
+    const res = await fetch(`${API}/admissions/`);
+    const data = await res.json();
+
+    const tbody = document.querySelector("#admissionTable tbody");
+    tbody.innerHTML = "";
+
+    data.forEach(a => {
+        tbody.innerHTML += `
+            <tr>
+                <td>${a.id}</td>
+                <td>${a.patient_id}</td>
+                <td>${a.doctor_id}</td>
+                <td>${a.admitted_at.replace("T", " ")}</td>
+                <td>${a.status}</td>
+                <td><button onclick="deleteAdmission(${a.id})">Delete</button></td>
+            </tr>
+        `;
+    });
+}
+
+async function addAdmission() {
+    const payload = {
+        patient_id: Number(document.getElementById("patient_id").value),
+        doctor_id: Number(document.getElementById("doctor_id").value),
+        admitted_at: document.getElementById("admitted_at").value,
+        reason: document.getElementById("reason").value
+    };
+
+    await fetch(`${API}/admissions/`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload)
+    });
+
+    loadAdmissions();
+}
+
+async function deleteAdmission(id) {
+    await fetch(`${API}/admissions/${id}`, { method: "DELETE" });
+    loadAdmissions();
+}
+
+loadAdmissions();
+</script>
+
+</body>
+</html>

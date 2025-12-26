@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Patients</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="navbar">Patients</div>
+<div class="nav-links">
+    <a href="index.html">Dashboard</a>
+</div>
+
+<div class="container">
+    <h2>Add / Edit Patient</h2>
+
+    <!-- EDITING TRACKER -->
+    <input type="hidden" id="edit_id">
+
+    <div class="input-group">
+        <input id="name" placeholder="Full Name">
+    </div>
+    <div class="input-group">
+        <input id="dob" type="date" placeholder="Date of Birth">
+    </div>
+    <div class="input-group">
+        <select id="gender">
+            <option value="">Select Gender</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="other">Other</option>
+        </select>
+    </div>
+    <div class="input-group">
+        <input id="phone" placeholder="Phone Number" 
+       maxlength="10"
+       pattern="[0-9]{10}"
+       oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+    </div>
+    <div class="input-group">
+        <input id="address" placeholder="Address">
+    </div>
+
+    <button onclick="savePatient()" id="saveBtn">Add Patient</button>
+    <button onclick="cancelEdit()" id="cancelBtn" style="display:none;background:#999;">Cancel</button>
+
+    <hr><h2>Search Patients</h2>
+
+    <div class="input-group">
+        <input id="searchQuery" placeholder="Search by name..." onkeyup="searchPatients()">
+    </div>
+
+    <h2>Patients List</h2>
+    <table id="patientsTable">
+        <thead>
+            <tr><th>ID</th><th>Name</th><th>Gender</th><th>Phone</th><th>Actions</th></tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</div>
+
+<script>
+const API = "http://127.0.0.1:8000";
+let allPatients = [];
+
+async function loadPatients() {
+    const res = await fetch(`${API}/patients/`);
+    allPatients = await res.json();
+    renderTable(allPatients);
+}
+
+function renderTable(data) {
+    const tbody = document.querySelector("#patientsTable tbody");
+    tbody.innerHTML = "";
+
+    data.forEach(p => {
+        tbody.innerHTML += `
+            <tr>
+                <td>${p.id}</td>
+                <td>${p.full_name}</td>
+                <td>${p.gender || ""}</td>
+                <td>${p.phone || ""}</td>
+                <td>
+                    <button onclick="editPatient(${p.id})">Edit</button>
+                    <button onclick="deletePatient(${p.id})" style="background:red;">Delete</button>
+                </td>
+            </tr>
+        `;
+    });
+}
+
+function searchPatients() {
+    const q = document.getElementById("searchQuery").value.toLowerCase();
+    const filtered = allPatients.filter(p =>
+        p.full_name.toLowerCase().includes(q)
+    );
+    renderTable(filtered);
+}
+
+async function savePatient() {
+    const id = document.getElementById("edit_id").value;
+    const phone = document.getElementById("phone").value;
+
+    if (!/^[0-9]{10}$/.test(phone)) {
+        alert("Phone number must be 10 digits only.");
+        return;
+    }
+
+
+    const payload = {
+        full_name: document.getElementById("name").value,
+        dob: document.getElementById("dob").value,
+        gender: document.getElementById("gender").value,
+        phone: document.getElementById("phone").value,
+        address: document.getElementById("address").value
+    };
+
+    // EDIT MODE
+    if (id) {
+        await fetch(`${API}/patients/${id}`, {
+            method: "PUT",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(payload)
+        });
+        cancelEdit();
+    }
+    else {
+        // ADD MODE
+        await fetch(`${API}/patients/`, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(payload)
+        });
+    }
+
+    loadPatients();
+}
+
+async function editPatient(id) {
+    const p = allPatients.find(x => x.id === id);
+
+    document.getElementById("edit_id").value = id;
+
+    document.getElementById("name").value = p.full_name;
+    document.getElementById("dob").value = p.dob || "";
+    document.getElementById("gender").value = p.gender || "";
+    document.getElementById("phone").value = p.phone || "";
+    document.getElementById("address").value = p.address || "";
+
+    document.getElementById("saveBtn").innerText = "Update Patient";
+    document.getElementById("cancelBtn").style.display = "inline-block";
+}
+
+function cancelEdit() {
+    document.getElementById("edit_id").value = "";
+    document.getElementById("name").value = "";
+    document.getElementById("dob").value = "";
+    document.getElementById("gender").value = "";
+    document.getElementById("phone").value = "";
+    document.getElementById("address").value = "";
+
+    document.getElementById("saveBtn").innerText = "Add Patient";
+    document.getElementById("cancelBtn").style.display = "none";
+}
+
+async function deletePatient(id) {
+    await fetch(`${API}/patients/${id}`, { method: "DELETE" });
+    loadPatients();
+}
+
+loadPatients();
+</script>
+
+</body>
+</html>

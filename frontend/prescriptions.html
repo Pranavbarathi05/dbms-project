@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Prescriptions</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="navbar">Prescriptions</div>
+<div class="nav-links">
+    <a href="index.html">Dashboard</a>
+</div>
+
+<div class="container">
+    <h2>Create Prescription</h2>
+
+    <!-- PATIENT DROPDOWN -->
+    <div class="input-group">
+        <select id="patient_id">
+            <option value="">Select Patient</option>
+        </select>
+    </div>
+
+    <!-- DOCTOR DROPDOWN -->
+    <div class="input-group">
+        <select id="doctor_id">
+            <option value="">Select Doctor</option>
+        </select>
+    </div>
+
+    <!-- APPOINTMENT DROPDOWN (optional) -->
+    <div class="input-group">
+        <select id="appointment_id">
+            <option value="">Select Appointment (Optional)</option>
+        </select>
+    </div>
+
+    <div class="input-group">
+        <input id="medication" placeholder="Medication Name">
+    </div>
+
+    <div class="input-group">
+        <input id="dosage" placeholder="Dosage (e.g., 1 tablet)">
+    </div>
+
+    <div class="input-group">
+        <input id="frequency" placeholder="Frequency (e.g., Twice daily)">
+    </div>
+
+    <div class="input-group">
+        <input id="instructions" placeholder="Instructions (optional)">
+    </div>
+
+    <button onclick="addPrescription()">Add Prescription</button>
+
+
+    <h2>All Prescriptions</h2>
+
+    <table id="prescriptionTable">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Patient</th>
+                <th>Doctor</th>
+                <th>Medication</th>
+                <th>Frequency</th>
+                <th>Appointment</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</div>
+
+<script>
+const API = "http://127.0.0.1:8000";
+
+async function loadDropdowns() {
+
+    // Load Patients
+    let res = await fetch(`${API}/patients/`);
+    let patients = await res.json();
+    let patientSelect = document.getElementById("patient_id");
+    patients.forEach(p => {
+        patientSelect.innerHTML += `<option value="${p.id}">${p.full_name}</option>`;
+    });
+
+    // Load Doctors
+    res = await fetch(`${API}/doctors/`);
+    let doctors = await res.json();
+    let doctorSelect = document.getElementById("doctor_id");
+    doctors.forEach(d => {
+        doctorSelect.innerHTML += `<option value="${d.id}">${d.full_name} (${d.speciality || ''})</option>`;
+    });
+
+    // Load Appointments
+    res = await fetch(`${API}/appointments/`);
+    let appointments = await res.json();
+    let appointmentSelect = document.getElementById("appointment_id");
+    appointments.forEach(a => {
+        appointmentSelect.innerHTML += `<option value="${a.id}">ID ${a.id} | Patient ${a.patient_id} | Doctor ${a.doctor_id}</option>`;
+    });
+}
+
+
+async function loadPrescriptions() {
+    const res = await fetch(`${API}/prescriptions/`);
+    const data = await res.json();
+
+    const tbody = document.querySelector("#prescriptionTable tbody");
+    tbody.innerHTML = "";
+
+    data.forEach(pr => {
+        tbody.innerHTML += `
+            <tr>
+                <td>${pr.id}</td>
+                <td>${pr.patient_id}</td>
+                <td>${pr.doctor_id}</td>
+                <td>${pr.medication}</td>
+                <td>${pr.frequency || ""}</td>
+                <td>${pr.appointment_id || ""}</td>
+                <td><button onclick="deletePrescription(${pr.id})">Delete</button></td>
+            </tr>
+        `;
+    });
+}
+
+
+async function addPrescription() {
+    const payload = {
+        patient_id: Number(document.getElementById("patient_id").value),
+        doctor_id: Number(document.getElementById("doctor_id").value),
+        appointment_id: document.getElementById("appointment_id").value || null,
+        medication: document.getElementById("medication").value,
+        dosage: document.getElementById("dosage").value,
+        frequency: document.getElementById("frequency").value,
+        instructions: document.getElementById("instructions").value
+    };
+
+    await fetch(`${API}/prescriptions/`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload)
+    });
+
+    loadPrescriptions();
+}
+
+async function deletePrescription(id) {
+    await fetch(`${API}/prescriptions/${id}`, { method: "DELETE" });
+    loadPrescriptions();
+}
+
+loadDropdowns();
+loadPrescriptions();
+</script>
+
+</body>
+</html>
