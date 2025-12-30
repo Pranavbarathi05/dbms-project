@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from typing import List
-from .. import models, schemas
-from ..database import SessionLocal
+import models, schemas
+from database import SessionLocal
 from decimal import Decimal
+from auth import get_current_active_user, check_role_permission
+from audit_helper import log_audit, get_client_ip
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
@@ -15,7 +17,13 @@ def get_db():
         db.close()
 
 @router.post("/", response_model=schemas.InvoiceOut)
-def create_invoice(payload: schemas.InvoiceCreate, db: Session = Depends(get_db)):
+def create_invoice(
+    request: Request,
+    payload: schemas.InvoiceCreate, 
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(check_role_permission(["admin", "receptionist"]))
+):
+    """Create invoice (Admin, Receptionist only)"""
     # validate patient
     p = db.query(models.Patient).filter(models.Patient.id == payload.patient_id).first()
     if not p:
@@ -39,22 +47,45 @@ def create_invoice(payload: schemas.InvoiceCreate, db: Session = Depends(get_db)
     db.add(inv)
     db.commit()
     db.refresh(inv)
+    
+    log_audit(db, current_user.id, current_user.username, "CREATE", "invoices", 
+              inv.id, f"Created invoice for patient {payload.patient_id}: ${payload.amount}", get_client_ip(request))
     return inv
 
 @router.get("/", response_model=List[schemas.InvoiceOut])
-def list_invoices(skip: int = 0, limit: int = Query(50, le=1000), db: Session = Depends(get_db)):
+def list_invoices(
+    request: Request,
+    skip: int = 0, 
+    limit: int = Query(50, le=1000), 
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(check_role_permission(["admin", "receptionist"]))
+):
+    """List invoices (Admin, Receptionist only)"""
     rows = db.query(models.Invoice).order_by(models.Invoice.issued_at.desc()).offset(skip).limit(limit).all()
     return rows
 
 @router.get("/{invoice_id}", response_model=schemas.InvoiceOut)
-def get_invoice(invoice_id: int, db: Session = Depends(get_db)):
+def get_invoice(
+    request: Request,
+    invoice_id: int, 
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(check_role_permission(["admin", "receptionist"]))
+):
+    """Get invoice by ID (Admin, Receptionist only)"""
     inv = db.query(models.Invoice).filter(models.Invoice.id == invoice_id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice not found")
     return inv
 
 @router.put("/{invoice_id}", response_model=schemas.InvoiceOut)
-def update_invoice(invoice_id: int, payload: schemas.InvoiceUpdate, db: Session = Depends(get_db)):
+def update_invoice(
+    request: Request,
+    invoice_id: int, 
+    payload: schemas.InvoiceUpdate, 
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(check_role_permission(["admin", "receptionist"]))
+):
+    """Update invoice (Admin, Receptionist only)"""
     inv = db.query(models.Invoice).filter(models.Invoice.id == invoice_id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice not found")
@@ -65,13 +96,26 @@ def update_invoice(invoice_id: int, payload: schemas.InvoiceUpdate, db: Session 
             setattr(inv, k, v)
     db.commit()
     db.refresh(inv)
+    
+    log_audit(db, current_user.id, current_user.username, "UPDATE", "invoices", 
+              invoice_id, f"Updated invoice", get_client_ip(request))
     return inv
 
 @router.delete("/{invoice_id}")
-def delete_invoice(invoice_id: int, db: Session = Depends(get_db)):
+def delete_invoice(
+    request: Request,
+    invoice_id: int, 
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(check_role_permission(["admin"]))
+):
+    """Delete invoice (Admin only)"""
     inv = db.query(models.Invoice).filter(models.Invoice.id == invoice_id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice not found")
+    
+    log_audit(db, current_user.id, current_user.username, "DELETE", "invoices", 
+              invoice_id, f"Deleted invoice", get_client_ip(request))
+    
     db.delete(inv)
     db.commit()
     return {"message": "Invoice deleted"}

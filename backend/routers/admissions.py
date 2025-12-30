@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from typing import List
-from .. import models, schemas
-from ..database import SessionLocal
+import models, schemas
+from database import SessionLocal
+from auth import get_current_active_user, check_role_permission
+from audit_helper import log_audit, get_client_ip
 
 router = APIRouter(prefix="/admissions", tags=["admissions"])
 
@@ -14,7 +16,13 @@ def get_db():
         db.close()
 
 @router.post("/", response_model=schemas.AdmissionOut)
-def create_admission(payload: schemas.AdmissionCreate, db: Session = Depends(get_db)):
+def create_admission(
+    request: Request,
+    payload: schemas.AdmissionCreate, 
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(check_role_permission(["admin", "doctor", "nurse"]))
+):
+    """Create admission (Admin, Doctor, Nurse only)"""
     # Validate patient & doctor
     p = db.query(models.Patient).filter(models.Patient.id == payload.patient_id).first()
     if not p:
@@ -27,22 +35,45 @@ def create_admission(payload: schemas.AdmissionCreate, db: Session = Depends(get
     db.add(adm)
     db.commit()
     db.refresh(adm)
+    
+    log_audit(db, current_user.id, current_user.username, "CREATE", "admissions", 
+              adm.id, f"Admitted patient {payload.patient_id}", get_client_ip(request))
     return adm
 
 @router.get("/", response_model=List[schemas.AdmissionOut])
-def list_admissions(skip: int = 0, limit: int = Query(50, le=1000), db: Session = Depends(get_db)):
+def list_admissions(
+    request: Request,
+    skip: int = 0, 
+    limit: int = Query(50, le=1000), 
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(check_role_permission(["admin", "doctor", "nurse"]))
+):
+    """List admissions (Admin, Doctor, Nurse only)"""
     rows = db.query(models.Admission).order_by(models.Admission.admitted_at.desc()).offset(skip).limit(limit).all()
     return rows
 
 @router.get("/{admission_id}", response_model=schemas.AdmissionOut)
-def get_admission(admission_id: int, db: Session = Depends(get_db)):
+def get_admission(
+    request: Request,
+    admission_id: int, 
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(check_role_permission(["admin", "doctor", "nurse"]))
+):
+    """Get admission by ID (Admin, Doctor, Nurse only)"""
     adm = db.query(models.Admission).filter(models.Admission.id == admission_id).first()
     if not adm:
         raise HTTPException(status_code=404, detail="Admission not found")
     return adm
 
 @router.put("/{admission_id}", response_model=schemas.AdmissionOut)
-def update_admission(admission_id: int, payload: schemas.AdmissionUpdate, db: Session = Depends(get_db)):
+def update_admission(
+    request: Request,
+    admission_id: int, 
+    payload: schemas.AdmissionUpdate, 
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(check_role_permission(["admin", "doctor", "nurse"]))
+):
+    """Update admission (Admin, Doctor, Nurse only)"""
     adm = db.query(models.Admission).filter(models.Admission.id == admission_id).first()
     if not adm:
         raise HTTPException(status_code=404, detail="Admission not found")
@@ -50,13 +81,26 @@ def update_admission(admission_id: int, payload: schemas.AdmissionUpdate, db: Se
         setattr(adm, k, v)
     db.commit()
     db.refresh(adm)
+    
+    log_audit(db, current_user.id, current_user.username, "UPDATE", "admissions", 
+              admission_id, f"Updated admission", get_client_ip(request))
     return adm
 
 @router.delete("/{admission_id}")
-def delete_admission(admission_id: int, db: Session = Depends(get_db)):
+def delete_admission(
+    request: Request,
+    admission_id: int, 
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(check_role_permission(["admin"]))
+):
+    """Delete admission (Admin only)"""
     adm = db.query(models.Admission).filter(models.Admission.id == admission_id).first()
     if not adm:
         raise HTTPException(status_code=404, detail="Admission not found")
+    
+    log_audit(db, current_user.id, current_user.username, "DELETE", "admissions", 
+              admission_id, f"Deleted admission", get_client_ip(request))
+    
     db.delete(adm)
     db.commit()
     return {"message": "Admission deleted"}

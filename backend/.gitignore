@@ -4,3 +4,8 @@ __pycache__
 *.pyo
 *.pyd
 .Python
+.env
+.env.local
+*.log
+logs/
+.DS_Store
