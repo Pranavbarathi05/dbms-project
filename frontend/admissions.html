@@ -6,28 +6,35 @@
 </head>
 <body>
 
-<div class="navbar">Admissions</div>
-<div class="nav-links">
+<div class="navbar">🛏️ Admissions</div>
+<div class="nav-links" id="navLinks">
     <a href="index.html">Dashboard</a>
+    <a href="patients.html" data-roles="admin,doctor,nurse,receptionist">Patients</a>
+    <a href="doctors.html" data-roles="admin,doctor">Doctors</a>
+    <a href="appointments.html" data-roles="admin,doctor,nurse,receptionist">Appointments</a>
+    <a href="prescriptions.html" data-roles="admin,doctor">Prescriptions</a>
+    <a href="invoices.html" data-roles="admin,receptionist">Invoices</a>
 </div>
 
 <div class="container">
-    <h2>Admit Patient</h2>
+    <div id="addAdmissionSection">
+        <h2>Admit Patient</h2>
 
-    <div class="input-group">
-        <input id="patient_id" placeholder="Patient ID">
-    </div>
-    <div class="input-group">
-        <input id="doctor_id" placeholder="Doctor ID">
-    </div>
-    <div class="input-group">
-        <input id="admitted_at" type="datetime-local">
-    </div>
-    <div class="input-group">
-        <input id="reason" placeholder="Reason for Admission">
-    </div>
+        <div class="input-group">
+            <input id="patient_id" placeholder="Patient ID">
+        </div>
+        <div class="input-group">
+            <input id="doctor_id" placeholder="Doctor ID">
+        </div>
+        <div class="input-group">
+            <input id="admitted_at" type="datetime-local">
+        </div>
+        <div class="input-group">
+            <input id="reason" placeholder="Reason for Admission">
+        </div>
 
-    <button onclick="addAdmission()">Admit Patient</button>
+        <button onclick="addAdmission()">Admit Patient</button>
+    </div>
 
     <h2>All Admissions</h2>
 
@@ -39,17 +46,26 @@
     </table>
 </div>
 
+<script src="auth.js"></script>
 <script>
 const API = "http://127.0.0.1:8000";
 
 async function loadAdmissions() {
-    const res = await fetch(`${API}/admissions/`);
+    const res = await fetchWithAuth(`${API}/admissions/`);
     const data = await res.json();
 
     const tbody = document.querySelector("#admissionTable tbody");
     tbody.innerHTML = "";
+    
+    const userInfo = getUserInfo();
+    const role = userInfo?.role || '';
 
     data.forEach(a => {
+        // Only admins can delete admissions
+        const actions = role === 'admin' ? 
+            `<button onclick="deleteAdmission(${a.id})">Delete</button>` : 
+            'View Only';
+            
         tbody.innerHTML += `
             <tr>
                 <td>${a.id}</td>
@@ -57,7 +73,7 @@ async function loadAdmissions() {
                 <td>${a.doctor_id}</td>
                 <td>${a.admitted_at.replace("T", " ")}</td>
                 <td>${a.status}</td>
-                <td><button onclick="deleteAdmission(${a.id})">Delete</button></td>
+                <td>${actions}</td>
             </tr>
         `;
     });
@@ -71,7 +87,7 @@ async function addAdmission() {
         reason: document.getElementById("reason").value
     };
 
-    await fetch(`${API}/admissions/`, {
+    await fetchWithAuth(`${API}/admissions/`, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify(payload)
@@ -81,11 +97,34 @@ async function addAdmission() {
 }
 
 async function deleteAdmission(id) {
-    await fetch(`${API}/admissions/${id}`, { method: "DELETE" });
+    await fetchWithAuth(`${API}/admissions/${id}`, { method: "DELETE" });
     loadAdmissions();
 }
 
+// Filter navigation based on user role
+function filterNavigation() {
+    const userInfo = getUserInfo();
+    if (!userInfo) return;
+    
+    const role = userInfo.role;
+    const navLinks = document.querySelectorAll('#navLinks a[data-roles]');
+    
+    navLinks.forEach(link => {
+        const allowedRoles = link.getAttribute('data-roles').split(',');
+        if (!allowedRoles.includes(role)) {
+            link.style.display = 'none';
+        }
+    });
+    
+    // Only admins, doctors, and nurses can create admissions
+    if (role !== 'admin' && role !== 'doctor' && role !== 'nurse') {
+        const addSection = document.getElementById('addAdmissionSection');
+        if (addSection) addSection.style.display = 'none';
+    }
+}
+
 loadAdmissions();
+filterNavigation();
 </script>
 
 </body>

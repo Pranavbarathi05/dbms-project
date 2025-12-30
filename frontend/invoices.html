@@ -6,48 +6,55 @@
 </head>
 <body>
 
-<div class="navbar">Invoices</div>
-<div class="nav-links">
+<div class="navbar">💰 Invoices</div>
+<div class="nav-links" id="navLinks">
     <a href="index.html">Dashboard</a>
+    <a href="patients.html" data-roles="admin,doctor,nurse,receptionist">Patients</a>
+    <a href="doctors.html" data-roles="admin,doctor">Doctors</a>
+    <a href="appointments.html" data-roles="admin,doctor,nurse,receptionist">Appointments</a>
+    <a href="admissions.html" data-roles="admin,doctor,nurse">Admissions</a>
+    <a href="prescriptions.html" data-roles="admin,doctor">Prescriptions</a>
 </div>
 
 <div class="container">
-    <h2>Create Invoice</h2>
+    <div id="addInvoiceSection">
+        <h2>Create Invoice</h2>
 
-    <!-- Patient Dropdown -->
-    <div class="input-group">
-        <select id="patient_id">
-            <option value="">Select Patient</option>
-        </select>
+        <!-- Patient Dropdown -->
+        <div class="input-group">
+            <select id="patient_id">
+                <option value="">Select Patient</option>
+            </select>
+        </div>
+
+        <!-- Appointment Dropdown -->
+        <div class="input-group">
+            <select id="appointment_id">
+                <option value="">Select Appointment (optional)</option>
+            </select>
+        </div>
+
+        <!-- Admission Dropdown -->
+        <div class="input-group">
+            <select id="admission_id">
+                <option value="">Select Admission (optional)</option>
+            </select>
+        </div>
+
+        <div class="input-group">
+            <input id="amount" placeholder="Invoice Amount">
+        </div>
+
+        <div class="input-group">
+            <select id="payment_status">
+                <option value="unpaid">Unpaid</option>
+                <option value="partial">Partial</option>
+                <option value="paid">Paid</option>
+            </select>
+        </div>
+
+        <button onclick="addInvoice()">Create Invoice</button>
     </div>
-
-    <!-- Appointment Dropdown -->
-    <div class="input-group">
-        <select id="appointment_id">
-            <option value="">Select Appointment (optional)</option>
-        </select>
-    </div>
-
-    <!-- Admission Dropdown -->
-    <div class="input-group">
-        <select id="admission_id">
-            <option value="">Select Admission (optional)</option>
-        </select>
-    </div>
-
-    <div class="input-group">
-        <input id="amount" placeholder="Invoice Amount">
-    </div>
-
-    <div class="input-group">
-        <select id="payment_status">
-            <option value="unpaid">Unpaid</option>
-            <option value="partial">Partial</option>
-            <option value="paid">Paid</option>
-        </select>
-    </div>
-
-    <button onclick="addInvoice()">Create Invoice</button>
 
     <h2>All Invoices</h2>
 
@@ -69,6 +76,7 @@
 </div>
 
 
+<script src="auth.js"></script>
 <script>
 const API = "http://127.0.0.1:8000";
 
@@ -76,7 +84,7 @@ const API = "http://127.0.0.1:8000";
 async function loadDropdowns() {
 
     // Patients
-    let res = await fetch(`${API}/patients/`);
+    let res = await fetchWithAuth(`${API}/patients/`);
     let patients = await res.json();
     let pSel = document.getElementById("patient_id");
 
@@ -86,7 +94,7 @@ async function loadDropdowns() {
 
 
     // Appointments
-    res = await fetch(`${API}/appointments/`);
+    res = await fetchWithAuth(`${API}/appointments/`);
     let appts = await res.json();
     let aSel = document.getElementById("appointment_id");
 
@@ -96,7 +104,7 @@ async function loadDropdowns() {
 
 
     // Admissions
-    res = await fetch(`${API}/admissions/`);
+    res = await fetchWithAuth(`${API}/admissions/`);
     let adms = await res.json();
     let admSel = document.getElementById("admission_id");
 
@@ -107,13 +115,21 @@ async function loadDropdowns() {
 
 
 async function loadInvoices() {
-    const res = await fetch(`${API}/invoices/`);
+    const res = await fetchWithAuth(`${API}/invoices/`);
     const data = await res.json();
 
     const tbody = document.querySelector("#invoiceTable tbody");
     tbody.innerHTML = "";
+    
+    const userInfo = getUserInfo();
+    const role = userInfo?.role || '';
 
     data.forEach(inv => {
+        // Only admins can delete invoices
+        const actions = role === 'admin' ? 
+            `<button onclick="deleteInvoice(${inv.id})">Delete</button>` : 
+            'View Only';
+            
         tbody.innerHTML += `
             <tr>
                 <td>${inv.id}</td>
@@ -123,7 +139,7 @@ async function loadInvoices() {
                 <td>${inv.amount}</td>
                 <td>${inv.payment_status}</td>
                 <td>${inv.issued_at ? inv.issued_at.replace("T", " ") : ""}</td>
-                <td><button onclick="deleteInvoice(${inv.id})">Delete</button></td>
+                <td>${actions}</td>
             </tr>
         `;
     });
@@ -139,7 +155,7 @@ async function addInvoice() {
         payment_status: document.getElementById("payment_status").value
     };
 
-    await fetch(`${API}/invoices/`, {
+    await fetchWithAuth(`${API}/invoices/`, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify(payload)
@@ -149,12 +165,35 @@ async function addInvoice() {
 }
 
 async function deleteInvoice(id) {
-    await fetch(`${API}/invoices/${id}`, { method: "DELETE" });
+    await fetchWithAuth(`${API}/invoices/${id}`, { method: "DELETE" });
     loadInvoices();
 }
 
 loadDropdowns();
+// Filter navigation based on user role
+function filterNavigation() {
+    const userInfo = getUserInfo();
+    if (!userInfo) return;
+    
+    const role = userInfo.role;
+    const navLinks = document.querySelectorAll('#navLinks a[data-roles]');
+    
+    navLinks.forEach(link => {
+        const allowedRoles = link.getAttribute('data-roles').split(',');
+        if (!allowedRoles.includes(role)) {
+            link.style.display = 'none';
+        }
+    });
+    
+    // Only admins and receptionists can create invoices
+    if (role !== 'admin' && role !== 'receptionist') {
+        const addSection = document.getElementById('addInvoiceSection');
+        if (addSection) addSection.style.display = 'none';
+    }
+}
+
 loadInvoices();
+filterNavigation();
 </script>
 
 </body>

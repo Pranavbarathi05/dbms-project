@@ -6,21 +6,57 @@
 </head>
 <body>
 
-<div class="navbar">Hospital Management System</div>
+<div class="navbar">🏥 Hospital Management System</div>
 
-<div class="nav-links">
-    <a href="patients.html">Patients</a>
-    <a href="doctors.html">Doctors</a>
-    <a href="appointments.html">Appointments</a>
-    <a href="admissions.html">Admissions</a>
-    <a href="prescriptions.html">Prescriptions</a>
-    <a href="invoices.html">Invoices</a>
+<div class="nav-links" id="navLinks">
+    <a href="patients.html" data-roles="admin,doctor,nurse,receptionist">Patients</a>
+    <a href="doctors.html" data-roles="admin,doctor">Doctors</a>
+    <a href="appointments.html" data-roles="admin,doctor,nurse,receptionist">Appointments</a>
+    <a href="admissions.html" data-roles="admin,doctor,nurse">Admissions</a>
+    <a href="prescriptions.html" data-roles="admin,doctor">Prescriptions</a>
+    <a href="invoices.html" data-roles="admin,receptionist">Invoices</a>
 </div>
 
 <div class="container">
     <h2>Welcome to the HMS Dashboard</h2>
     <p>Select any module from the navigation bar to begin.</p>
+    
+    <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px;">
+        <h3>🔒 Security Features Implemented</h3>
+        <ul style="text-align: left; max-width: 600px; margin: 20px auto;">
+            <li><strong>Authentication:</strong> JWT-based secure login</li>
+            <li><strong>Authorization:</strong> Role-based access control (Admin, Doctor, Nurse, Receptionist)</li>
+            <li><strong>Audit Logging:</strong> All actions are logged for compliance</li>
+            <li><strong>Input Validation:</strong> Comprehensive data validation</li>
+            <li><strong>Rate Limiting:</strong> DDoS protection enabled</li>
+            <li><strong>Health Monitoring:</strong> System health checks available</li>
+        </ul>
+    </div>
 </div>
+
+<script src="auth.js"></script>
+<script>
+// Filter navigation based on user role
+function filterNavigation() {
+    const userInfo = getUserInfo();
+    if (!userInfo) return;
+    
+    const role = userInfo.role;
+    const navLinks = document.querySelectorAll('#navLinks a[data-roles]');
+    
+    navLinks.forEach(link => {
+        const allowedRoles = link.getAttribute('data-roles').split(',');
+        if (!allowedRoles.includes(role)) {
+            link.style.display = 'none';
+        }
+    });
+}
+
+// Apply filters on load
+document.addEventListener('DOMContentLoaded', () => {
+    filterNavigation();
+});
+</script>
 
 </body>
 </html>

@@ -6,43 +6,50 @@
 </head>
 <body>
 
-<div class="navbar">Patients</div>
-<div class="nav-links">
+<div class="navbar">🏥 Patients</div>
+<div class="nav-links" id="navLinks">
     <a href="index.html">Dashboard</a>
+    <a href="doctors.html" data-roles="admin,doctor">Doctors</a>
+    <a href="appointments.html" data-roles="admin,doctor,nurse,receptionist">Appointments</a>
+    <a href="admissions.html" data-roles="admin,doctor,nurse">Admissions</a>
+    <a href="prescriptions.html" data-roles="admin,doctor">Prescriptions</a>
+    <a href="invoices.html" data-roles="admin,receptionist">Invoices</a>
 </div>
 
 <div class="container">
-    <h2>Add / Edit Patient</h2>
+    <div id="addPatientSection">
+        <h2 id="formTitle">Add / Edit Patient</h2>
 
-    <!-- EDITING TRACKER -->
-    <input type="hidden" id="edit_id">
+        <!-- EDITING TRACKER -->
+        <input type="hidden" id="edit_id">
 
-    <div class="input-group">
-        <input id="name" placeholder="Full Name">
-    </div>
-    <div class="input-group">
-        <input id="dob" type="date" placeholder="Date of Birth">
-    </div>
-    <div class="input-group">
-        <select id="gender">
-            <option value="">Select Gender</option>
-            <option value="male">Male</option>
-            <option value="female">Female</option>
-            <option value="other">Other</option>
-        </select>
-    </div>
-    <div class="input-group">
-        <input id="phone" placeholder="Phone Number" 
-       maxlength="10"
-       pattern="[0-9]{10}"
-       oninput="this.value = this.value.replace(/[^0-9]/g, '')">
-    </div>
-    <div class="input-group">
-        <input id="address" placeholder="Address">
-    </div>
+        <div class="input-group">
+            <input id="name" placeholder="Full Name">
+        </div>
+        <div class="input-group">
+            <input id="dob" type="date" placeholder="Date of Birth">
+        </div>
+        <div class="input-group">
+            <select id="gender">
+                <option value="">Select Gender</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+            </select>
+        </div>
+        <div class="input-group">
+            <input id="phone" placeholder="Phone Number" 
+           maxlength="10"
+           pattern="[0-9]{10}"
+           oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+        </div>
+        <div class="input-group">
+            <input id="address" placeholder="Address">
+        </div>
 
-    <button onclick="savePatient()" id="saveBtn">Add Patient</button>
-    <button onclick="cancelEdit()" id="cancelBtn" style="display:none;background:#999;">Cancel</button>
+        <button onclick="savePatient()" id="saveBtn">Add Patient</button>
+        <button onclick="cancelEdit()" id="cancelBtn" style="display:none;background:#999;">Cancel</button>
+    </div>
 
     <hr><h2>Search Patients</h2>
 
@@ -59,31 +66,51 @@
     </table>
 </div>
 
+<script src="auth.js"></script>
 <script>
 const API = "http://127.0.0.1:8000";
 let allPatients = [];
 
 async function loadPatients() {
-    const res = await fetch(`${API}/patients/`);
-    allPatients = await res.json();
-    renderTable(allPatients);
+    try {
+        const res = await fetchWithAuth(`${API}/patients/`);
+        if (!res) return;
+        allPatients = await res.json();
+        renderTable(allPatients);
+    } catch (error) {
+        console.error('Error loading patients:', error);
+        alert('Error loading patients: ' + error.message);
+    }
 }
 
 function renderTable(data) {
     const tbody = document.querySelector("#patientsTable tbody");
     tbody.innerHTML = "";
+    
+    const userInfo = getUserInfo();
+    const role = userInfo?.role || '';
 
     data.forEach(p => {
+        // Build action buttons based on role
+        let actions = '';
+        
+        // Edit button - not for receptionists
+        if (role !== 'receptionist') {
+            actions += `<button onclick="editPatient(${p.id})">Edit</button>`;
+        }
+        
+        // Delete button - only for admins
+        if (role === 'admin') {
+            actions += `<button onclick="deletePatient(${p.id})" style="background:red;">Delete</button>`;
+        }
+        
         tbody.innerHTML += `
             <tr>
                 <td>${p.id}</td>
                 <td>${p.full_name}</td>
                 <td>${p.gender || ""}</td>
                 <td>${p.phone || ""}</td>
-                <td>
-                    <button onclick="editPatient(${p.id})">Edit</button>
-                    <button onclick="deletePatient(${p.id})" style="background:red;">Delete</button>
-                </td>
+                <td>${actions || 'View Only'}</td>
             </tr>
         `;
     });
@@ -106,7 +133,6 @@ async function savePatient() {
         return;
     }
 
-
     const payload = {
         full_name: document.getElementById("name").value,
         dob: document.getElementById("dob").value,
@@ -115,25 +141,30 @@ async function savePatient() {
         address: document.getElementById("address").value
     };
 
-    // EDIT MODE
-    if (id) {
-        await fetch(`${API}/patients/${id}`, {
-            method: "PUT",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify(payload)
-        });
-        cancelEdit();
-    }
-    else {
-        // ADD MODE
-        await fetch(`${API}/patients/`, {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify(payload)
-        });
-    }
+    try {
+        // EDIT MODE
+        if (id) {
+            const res = await fetchWithAuth(`${API}/patients/${id}`, {
+                method: "PUT",
+                body: JSON.stringify(payload)
+            });
+            if (!res) return;
+            cancelEdit();
+        }
+        else {
+            // ADD MODE
+            const res = await fetchWithAuth(`${API}/patients/`, {
+                method: "POST",
+                body: JSON.stringify(payload)
+            });
+            if (!res) return;
+        }
 
-    loadPatients();
+        loadPatients();
+    } catch (error) {
+        console.error('Error saving patient:', error);
+        alert('Error saving patient: ' + error.message);
+    }
 }
 
 async function editPatient(id) {
@@ -164,11 +195,41 @@ function cancelEdit() {
 }
 
 async function deletePatient(id) {
-    await fetch(`${API}/patients/${id}`, { method: "DELETE" });
-    loadPatients();
+    if (!confirm('Are you sure you want to delete this patient?')) return;
+    
+    try {
+        const res = await fetchWithAuth(`${API}/patients/${id}`, { method: "DELETE" });
+        if (!res) return;
+        loadPatients();
+    } catch (error) {
+        console.error('Error deleting patient:', error);
+        alert('Error deleting patient: ' + error.message);
+    }
+}
+
+// Filter navigation based on user role
+function filterNavigation() {
+    const userInfo = getUserInfo();
+    if (!userInfo) return;
+    
+    const role = userInfo.role;
+    const navLinks = document.querySelectorAll('#navLinks a[data-roles]');
+    
+    navLinks.forEach(link => {
+        const allowedRoles = link.getAttribute('data-roles').split(',');
+        if (!allowedRoles.includes(role)) {
+            link.style.display = 'none';
+        }
+    });
+    
+    // Update form title based on role permissions
+    if (role === 'receptionist') {
+        document.getElementById('formTitle').innerText = 'Add Patient';
+    }
 }
 
 loadPatients();
+filterNavigation();
 </script>
 
 </body>

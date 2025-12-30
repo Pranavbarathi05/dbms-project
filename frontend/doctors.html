@@ -6,28 +6,35 @@
 </head>
 <body>
 
-<div class="navbar">Doctors</div>
-<div class="nav-links">
+<div class="navbar">🩺 Doctors</div>
+<div class="nav-links" id="navLinks">
     <a href="index.html">Dashboard</a>
+    <a href="patients.html" data-roles="admin,doctor,nurse,receptionist">Patients</a>
+    <a href="appointments.html" data-roles="admin,doctor,nurse,receptionist">Appointments</a>
+    <a href="admissions.html" data-roles="admin,doctor,nurse">Admissions</a>
+    <a href="prescriptions.html" data-roles="admin,doctor">Prescriptions</a>
+    <a href="invoices.html" data-roles="admin,receptionist">Invoices</a>
 </div>
 
 <div class="container">
-    <h2>Add Doctor</h2>
+    <div id="addDoctorSection">
+        <h2>Add Doctor</h2>
 
-    <div class="input-group">
-        <input id="full_name" placeholder="Full Name">
-    </div>
-    <div class="input-group">
-        <input id="speciality" placeholder="Speciality">
-    </div>
-    <div class="input-group">
-        <input id="phone" placeholder="Phone Number" 
-       maxlength="10"
-       pattern="[0-9]{10}"
-       oninput="this.value = this.value.replace(/[^0-9]/g, '')">
-    </div>
+        <div class="input-group">
+            <input id="full_name" placeholder="Full Name">
+        </div>
+        <div class="input-group">
+            <input id="speciality" placeholder="Speciality">
+        </div>
+        <div class="input-group">
+            <input id="phone" placeholder="Phone Number" 
+           maxlength="10"
+           pattern="[0-9]{10}"
+           oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+        </div>
 
-    <button onclick="addDoctor()">Add Doctor</button>
+        <button onclick="addDoctor()">Add Doctor</button>
+    </div>
 
     <h2>All Doctors</h2>
     <table id="doctorsTable">
@@ -38,25 +45,34 @@
     </table>
 </div>
 
-
+<script src="auth.js"></script>
 <script>
 const API = "http://127.0.0.1:8000";
 
 async function loadDoctors() {
-    const res = await fetch(`${API}/doctors/`);
+    const res = await fetchWithAuth(`${API}/doctors/`);
+    if (!res) return;
     const data = await res.json();
 
     const tbody = document.querySelector("#doctorsTable tbody");
     tbody.innerHTML = "";
+    
+    const userInfo = getUserInfo();
+    const role = userInfo?.role || '';
 
     data.forEach(d => {
+        // Only admins can delete doctors
+        const actions = role === 'admin' ? 
+            `<button onclick="deleteDoctor(${d.id})">Delete</button>` : 
+            'View Only';
+            
         tbody.innerHTML += `
             <tr>
                 <td>${d.id}</td>
                 <td>${d.full_name}</td>
                 <td>${d.speciality || ""}</td>
                 <td>${d.phone || ""}</td>
-                <td><button onclick="deleteDoctor(${d.id})">Delete</button></td>
+                <td>${actions}</td>
             </tr>
         `;
     });
@@ -76,21 +92,46 @@ async function addDoctor() {
         phone: document.getElementById("phone").value
     };
 
-    await fetch(`${API}/doctors/`, {
+    const res = await fetchWithAuth(`${API}/doctors/`, {
         method: "POST",
-        headers: {"Content-Type": "application/json"},
         body: JSON.stringify(payload)
     });
+    if (!res) return;
 
     loadDoctors();
 }
 
 async function deleteDoctor(id) {
-    await fetch(`${API}/doctors/${id}`, { method: "DELETE" });
+    if (!confirm('Are you sure you want to delete this doctor?')) return;
+    const res = await fetchWithAuth(`${API}/doctors/${id}`, { method: "DELETE" });
+    if (!res) return;
     loadDoctors();
 }
 
+// Filter navigation based on user role
+function filterNavigation() {
+    const userInfo = getUserInfo();
+    if (!userInfo) return;
+    
+    const role = userInfo.role;
+    const navLinks = document.querySelectorAll('#navLinks a[data-roles]');
+    
+    navLinks.forEach(link => {
+        const allowedRoles = link.getAttribute('data-roles').split(',');
+        if (!allowedRoles.includes(role)) {
+            link.style.display = 'none';
+        }
+    });
+    
+    // Hide add doctor form for non-admins and non-doctors
+    if (role !== 'admin' && role !== 'doctor') {
+        const addSection = document.getElementById('addDoctorSection');
+        if (addSection) addSection.style.display = 'none';
+    }
+}
+
 loadDoctors();
+filterNavigation();
 </script>
 
 </body>

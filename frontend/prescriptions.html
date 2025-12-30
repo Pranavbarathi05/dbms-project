@@ -6,52 +6,59 @@
 </head>
 <body>
 
-<div class="navbar">Prescriptions</div>
-<div class="nav-links">
+<div class="navbar">💊 Prescriptions</div>
+<div class="nav-links" id="navLinks">
     <a href="index.html">Dashboard</a>
+    <a href="patients.html" data-roles="admin,doctor,nurse,receptionist">Patients</a>
+    <a href="doctors.html" data-roles="admin,doctor">Doctors</a>
+    <a href="appointments.html" data-roles="admin,doctor,nurse,receptionist">Appointments</a>
+    <a href="admissions.html" data-roles="admin,doctor,nurse">Admissions</a>
+    <a href="invoices.html" data-roles="admin,receptionist">Invoices</a>
 </div>
 
 <div class="container">
-    <h2>Create Prescription</h2>
+    <div id="addPrescriptionSection">
+        <h2>Create Prescription</h2>
 
-    <!-- PATIENT DROPDOWN -->
-    <div class="input-group">
-        <select id="patient_id">
-            <option value="">Select Patient</option>
-        </select>
+        <!-- PATIENT DROPDOWN -->
+        <div class="input-group">
+            <select id="patient_id">
+                <option value="">Select Patient</option>
+            </select>
+        </div>
+
+        <!-- DOCTOR DROPDOWN -->
+        <div class="input-group">
+            <select id="doctor_id">
+                <option value="">Select Doctor</option>
+            </select>
+        </div>
+
+        <!-- APPOINTMENT DROPDOWN (optional) -->
+        <div class="input-group">
+            <select id="appointment_id">
+                <option value="">Select Appointment (Optional)</option>
+            </select>
+        </div>
+
+        <div class="input-group">
+            <input id="medication" placeholder="Medication Name">
+        </div>
+
+        <div class="input-group">
+            <input id="dosage" placeholder="Dosage (e.g., 1 tablet)">
+        </div>
+
+        <div class="input-group">
+            <input id="frequency" placeholder="Frequency (e.g., Twice daily)">
+        </div>
+
+        <div class="input-group">
+            <input id="instructions" placeholder="Instructions (optional)">
+        </div>
+
+        <button onclick="addPrescription()">Add Prescription</button>
     </div>
-
-    <!-- DOCTOR DROPDOWN -->
-    <div class="input-group">
-        <select id="doctor_id">
-            <option value="">Select Doctor</option>
-        </select>
-    </div>
-
-    <!-- APPOINTMENT DROPDOWN (optional) -->
-    <div class="input-group">
-        <select id="appointment_id">
-            <option value="">Select Appointment (Optional)</option>
-        </select>
-    </div>
-
-    <div class="input-group">
-        <input id="medication" placeholder="Medication Name">
-    </div>
-
-    <div class="input-group">
-        <input id="dosage" placeholder="Dosage (e.g., 1 tablet)">
-    </div>
-
-    <div class="input-group">
-        <input id="frequency" placeholder="Frequency (e.g., Twice daily)">
-    </div>
-
-    <div class="input-group">
-        <input id="instructions" placeholder="Instructions (optional)">
-    </div>
-
-    <button onclick="addPrescription()">Add Prescription</button>
 
 
     <h2>All Prescriptions</h2>
@@ -72,13 +79,14 @@
     </table>
 </div>
 
+<script src="auth.js"></script>
 <script>
 const API = "http://127.0.0.1:8000";
 
 async function loadDropdowns() {
 
     // Load Patients
-    let res = await fetch(`${API}/patients/`);
+    let res = await fetchWithAuth(`${API}/patients/`);
     let patients = await res.json();
     let patientSelect = document.getElementById("patient_id");
     patients.forEach(p => {
@@ -86,7 +94,7 @@ async function loadDropdowns() {
     });
 
     // Load Doctors
-    res = await fetch(`${API}/doctors/`);
+    res = await fetchWithAuth(`${API}/doctors/`);
     let doctors = await res.json();
     let doctorSelect = document.getElementById("doctor_id");
     doctors.forEach(d => {
@@ -94,7 +102,7 @@ async function loadDropdowns() {
     });
 
     // Load Appointments
-    res = await fetch(`${API}/appointments/`);
+    res = await fetchWithAuth(`${API}/appointments/`);
     let appointments = await res.json();
     let appointmentSelect = document.getElementById("appointment_id");
     appointments.forEach(a => {
@@ -104,13 +112,21 @@ async function loadDropdowns() {
 
 
 async function loadPrescriptions() {
-    const res = await fetch(`${API}/prescriptions/`);
+    const res = await fetchWithAuth(`${API}/prescriptions/`);
     const data = await res.json();
 
     const tbody = document.querySelector("#prescriptionTable tbody");
     tbody.innerHTML = "";
+    
+    const userInfo = getUserInfo();
+    const role = userInfo?.role || '';
 
     data.forEach(pr => {
+        // Only admins and doctors can delete prescriptions
+        const actions = (role === 'admin' || role === 'doctor') ? 
+            `<button onclick="deletePrescription(${pr.id})">Delete</button>` : 
+            'View Only';
+            
         tbody.innerHTML += `
             <tr>
                 <td>${pr.id}</td>
@@ -119,7 +135,7 @@ async function loadPrescriptions() {
                 <td>${pr.medication}</td>
                 <td>${pr.frequency || ""}</td>
                 <td>${pr.appointment_id || ""}</td>
-                <td><button onclick="deletePrescription(${pr.id})">Delete</button></td>
+                <td>${actions}</td>
             </tr>
         `;
     });
@@ -137,7 +153,7 @@ async function addPrescription() {
         instructions: document.getElementById("instructions").value
     };
 
-    await fetch(`${API}/prescriptions/`, {
+    await fetchWithAuth(`${API}/prescriptions/`, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify(payload)
@@ -147,12 +163,35 @@ async function addPrescription() {
 }
 
 async function deletePrescription(id) {
-    await fetch(`${API}/prescriptions/${id}`, { method: "DELETE" });
+    await fetchWithAuth(`${API}/prescriptions/${id}`, { method: "DELETE" });
     loadPrescriptions();
 }
 
 loadDropdowns();
+// Filter navigation based on user role
+function filterNavigation() {
+    const userInfo = getUserInfo();
+    if (!userInfo) return;
+    
+    const role = userInfo.role;
+    const navLinks = document.querySelectorAll('#navLinks a[data-roles]');
+    
+    navLinks.forEach(link => {
+        const allowedRoles = link.getAttribute('data-roles').split(',');
+        if (!allowedRoles.includes(role)) {
+            link.style.display = 'none';
+        }
+    });
+    
+    // Only admins and doctors can create prescriptions
+    if (role !== 'admin' && role !== 'doctor') {
+        const addSection = document.getElementById('addPrescriptionSection');
+        if (addSection) addSection.style.display = 'none';
+    }
+}
+
 loadPrescriptions();
+filterNavigation();
 </script>
 
 </body>

@@ -6,28 +6,35 @@
 </head>
 <body>
 
-<div class="navbar">Appointments</div>
-<div class="nav-links">
+<div class="navbar">📅 Appointments</div>
+<div class="nav-links" id="navLinks">
     <a href="index.html">Dashboard</a>
+    <a href="patients.html" data-roles="admin,doctor,nurse,receptionist">Patients</a>
+    <a href="doctors.html" data-roles="admin,doctor">Doctors</a>
+    <a href="admissions.html" data-roles="admin,doctor,nurse">Admissions</a>
+    <a href="prescriptions.html" data-roles="admin,doctor">Prescriptions</a>
+    <a href="invoices.html" data-roles="admin,receptionist">Invoices</a>
 </div>
 
 <div class="container">
-    <h2>Create Appointment</h2>
+    <div id="addAppointmentSection">
+        <h2>Create Appointment</h2>
 
-    <div class="input-group">
-        <input id="patient_id" placeholder="Patient ID">
-    </div>
-    <div class="input-group">
-        <input id="doctor_id" placeholder="Doctor ID">
-    </div>
-    <div class="input-group">
-        <input id="scheduled_at" type="datetime-local">
-    </div>
-    <div class="input-group">
-        <input id="reason" placeholder="Reason">
-    </div>
+        <div class="input-group">
+            <input id="patient_id" placeholder="Patient ID">
+        </div>
+        <div class="input-group">
+            <input id="doctor_id" placeholder="Doctor ID">
+        </div>
+        <div class="input-group">
+            <input id="scheduled_at" type="datetime-local">
+        </div>
+        <div class="input-group">
+            <input id="reason" placeholder="Reason">
+        </div>
 
-    <button onclick="addAppointment()">Create Appointment</button>
+        <button onclick="addAppointment()">Create Appointment</button>
+    </div>
 
     <h2>All Appointments</h2>
 
@@ -40,17 +47,26 @@
 </div>
 
 
+<script src="auth.js"></script>
 <script>
 const API = "http://127.0.0.1:8000";
 
 async function loadAppointments() {
-    const res = await fetch(`${API}/appointments/`);
+    const res = await fetchWithAuth(`${API}/appointments/`);
     const data = await res.json();
 
     const tbody = document.querySelector("#appointmentTable tbody");
     tbody.innerHTML = "";
+    
+    const userInfo = getUserInfo();
+    const role = userInfo?.role || '';
 
     data.forEach(a => {
+        // Only admins can delete appointments
+        const actions = role === 'admin' ? 
+            `<button onclick="deleteAppointment(${a.id})">Delete</button>` : 
+            'View Only';
+            
         tbody.innerHTML += `
             <tr>
                 <td>${a.id}</td>
@@ -58,7 +74,7 @@ async function loadAppointments() {
                 <td>${a.doctor_id}</td>
                 <td>${a.scheduled_at.replace("T", " ")}</td>
                 <td>${a.status}</td>
-                <td><button onclick="deleteAppointment(${a.id})">Delete</button></td>
+                <td>${actions}</td>
             </tr>
         `;
     });
@@ -72,7 +88,7 @@ async function addAppointment() {
         reason: document.getElementById("reason").value
     };
 
-    await fetch(`${API}/appointments/`, {
+    await fetchWithAuth(`${API}/appointments/`, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify(payload)
@@ -82,11 +98,28 @@ async function addAppointment() {
 }
 
 async function deleteAppointment(id) {
-    await fetch(`${API}/appointments/${id}`, { method: "DELETE" });
+    await fetchWithAuth(`${API}/appointments/${id}`, { method: "DELETE" });
     loadAppointments();
 }
 
+// Filter navigation based on user role
+function filterNavigation() {
+    const userInfo = getUserInfo();
+    if (!userInfo) return;
+    
+    const role = userInfo.role;
+    const navLinks = document.querySelectorAll('#navLinks a[data-roles]');
+    
+    navLinks.forEach(link => {
+        const allowedRoles = link.getAttribute('data-roles').split(',');
+        if (!allowedRoles.includes(role)) {
+            link.style.display = 'none';
+        }
+    });
+}
+
 loadAppointments();
+filterNavigation();
 </script>
 
 </body>
